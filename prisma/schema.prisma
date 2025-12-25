@@ -1,0 +1,28 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("EMPLOYEE") // ADMIN, EMPLOYEE
+  code      String   @unique // The unique QR/ID code
+  createdAt DateTime @default(now())
+  attendance Attendance[]
+}
+
+model Attendance {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  type      String   // CHECK_IN, CHECK_OUT
+  timestamp DateTime @default(now())
+  status    String?  // LATE, ON_TIME, etc.
+}
