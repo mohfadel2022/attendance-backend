@@ -1,0 +1,60 @@
+generator client_pg {
+  provider = "prisma-client-js"
+  output   = "../generated/client-pg"
+}
+
+generator client_sqlite {
+  provider = "prisma-client-js"
+  output   = "../generated/client-sqlite"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("SQLITE_URL")
+}
+
+model User {
+  id               Int          @id @default(autoincrement())
+  name             String
+  email            String       @unique
+  password         String
+  role             String       @default("EMPLOYEE") // SUPERADMIN, ADMIN, EMPLOYEE
+  code             String       @unique // The unique QR/ID code
+  createdAt        DateTime     @default(now())
+  theme            String       @default("light") // light, dark
+  language         String       @default("es") // es, ar, en
+  resetToken       String?      @unique
+  resetTokenExpiry DateTime?
+  attendance       Attendance[]
+}
+
+model SystemConfig {
+  id          Int       @id @default(autoincrement())
+  dbMode      String    @default("local") // local, remote
+  localDbUrl  String?
+  remoteDbUrl String?
+  lastSyncAt  DateTime?
+  syncActive  Boolean   @default(false)
+  updatedAt   DateTime  @updatedAt
+}
+
+model Office {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @default("Main Office")
+  latitude  Float
+  longitude Float
+  radius    Float    @default(500) // in meters
+  updatedAt DateTime @updatedAt
+}
+
+model Attendance {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id])
+  type       String // CHECK_IN, CHECK_OUT
+  timestamp  DateTime @default(now())
+  status     String? // LATE, ON_TIME, etc.
+  latitude   Float?
+  longitude  Float?
+  isVerified Boolean  @default(false)
+}

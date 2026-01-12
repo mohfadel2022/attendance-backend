@@ -1,12 +1,15 @@
-generator client {
+
+generator client_postgresql {
   provider = "prisma-client-js"
-  output   = "../node_modules/@prisma/client-pg"
+  output   = "../generated/client-postgresql"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+
 
 model User {
   id        Int      @id @default(autoincrement())

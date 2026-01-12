@@ -1,12 +1,19 @@
-generator client {
+generator client_pg {
   provider = "prisma-client-js"
-  output   = "../node_modules/@prisma/client-sqlite"
+  output   = "../generated/client-pg"
 }
+
+generator client_sqlite {
+  provider = "prisma-client-js"
+  output   = "../generated/client-sqlite"
+}
+
 
 datasource db {
   provider = "sqlite"
   url      = env("SQLITE_URL")
 }
+
 
 model User {
   id        Int      @id @default(autoincrement())
