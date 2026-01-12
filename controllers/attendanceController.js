@@ -7,35 +7,61 @@ const logToFile = (msg) => {
     fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`);
 };
 
+const getDistance = (lat1, lon1, lat2, lon2) => {
+    
+    const R = 6371e3; // meters
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+        Math.cos(φ1) * Math.cos(φ2) *
+        Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // in meters
+};
+
 // Check In
 exports.checkIn = async (req, res) => {
     try {
-        const userId = req.user.userId; // From auth middleware
-        const { qrCode } = req.body;
+        const userId = req.user.userId;
+        const { qrCode, latitude, longitude } = req.body;
 
         const rawQr = qrCode || "";
         const trimmedQr = rawQr.trim();
 
-        logToFile(`[Check-in] User ID: ${userId}, Raw: "${rawQr}", Trimmed: "${trimmedQr}", Expected: "OFFICE_CHECK_2025"`);
-
-        console.log(`[Check-in] User ID: ${userId}`);
-        console.log(`- Received QR: "${rawQr}" (length: ${rawQr.length})`);
-        console.log(`- Trimmed QR: "${trimmedQr}" (length: ${trimmedQr.length})`);
-        console.log(`- Expected: "OFFICE_CHECK_2025" (length: 17)`);
-
         if (trimmedQr !== 'OFFICE_CHECK_2025') {
-            console.warn(`[Check-in] Validation failed for user ${userId}. Received: "${rawQr}"`);
             return res.status(400).json({ error: 'Invalid QR Code' });
         }
 
-        // Check if already checked in today (optional, but good practice)
-        // For simplicity, we just create a record.
+        // Location Verification
+        let isVerified = false;
+        const office = await prisma.office.findFirst();
+        if (office && latitude && longitude) {
+            
+            const distance = getDistance(latitude, longitude, office.latitude, office.longitude);
+            if (distance <= office.radius) {
+                isVerified = true;
+            } else {
+
+                console.warn(`[Check-in] User ${userId} too far: ${distance.toFixed(1)}m > ${office.radius}m`);
+                return res.status(403).json({
+                    error: 'You are outside the office zone',
+                    distance: Math.round(distance),
+                    allowedRadius: office.radius
+                });
+            }
+        }
 
         const attendance = await prisma.attendance.create({
             data: {
                 userId: userId,
                 type: 'CHECK_IN',
-                status: 'ON_TIME' // Logic for late/on-time could go here
+                status: 'ON_TIME',
+                latitude: latitude ? parseFloat(latitude) : null,
+                longitude: longitude ? parseFloat(longitude) : null,
+                isVerified: isVerified
             }
         });
 
@@ -50,23 +76,39 @@ exports.checkIn = async (req, res) => {
 exports.checkOut = async (req, res) => {
     try {
         const userId = req.user.userId;
-        const { qrCode } = req.body;
+        const { qrCode, latitude, longitude } = req.body;
 
         const rawQr = qrCode || "";
         const trimmedQr = rawQr.trim();
 
-        logToFile(`[Check-out] User ID: ${userId}, Raw: "${rawQr}", Trimmed: "${trimmedQr}", Expected: "OFFICE_CHECK_2025"`);
-
         if (trimmedQr !== 'OFFICE_CHECK_2025') {
-            logToFile(`[Check-out] Validation failed for user ${userId}`);
             return res.status(400).json({ error: 'Invalid QR Code' });
+        }
+
+        // Location Verification
+        let isVerified = false;
+        const office = await prisma.office.findFirst();
+        if (office && latitude && longitude) {
+            const distance = getDistance(latitude, longitude, office.latitude, office.longitude);
+            if (distance <= office.radius) {
+                isVerified = true;
+            } else {
+                return res.status(403).json({
+                    error: 'You are outside the office zone',
+                    distance: Math.round(distance),
+                    allowedRadius: office.radius
+                });
+            }
         }
 
         const attendance = await prisma.attendance.create({
             data: {
                 userId: userId,
                 type: 'CHECK_OUT',
-                status: 'Left Work'
+                status: 'Left Work',
+                latitude: latitude ? parseFloat(latitude) : null,
+                longitude: longitude ? parseFloat(longitude) : null,
+                isVerified: isVerified
             }
         });
 
@@ -101,7 +143,6 @@ exports.getStatus = async (req, res) => {
 // Get ALL Attendance (Admin)
 exports.getAll = async (req, res) => {
     try {
-        // In a real app, check if req.user.role === 'ADMIN'
 
         const records = await prisma.attendance.findMany({
             include: {

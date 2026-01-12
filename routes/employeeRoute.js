@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const employeeController = require('../controllers/employeeController');
-// Middleware to check auth would be here. Skipping for speed/simplicity initially.
+const authMiddleware = require('../middleware/authMiddleware');
+const roleMiddleware = require('../middleware/roleMiddleware');
 
-router.post('/', employeeController.createEmployee);
-router.get('/', employeeController.getEmployees);
-router.delete('/:id', employeeController.deleteEmployee);
-router.put('/:id', employeeController.updateEmployee);
+router.post('/', authMiddleware, roleMiddleware(['ADMIN', 'SUPERADMIN']), employeeController.createEmployee);
+router.get('/', authMiddleware, roleMiddleware(['ADMIN', 'SUPERADMIN']), employeeController.getEmployees);
+router.delete('/:id', authMiddleware, roleMiddleware(['ADMIN', 'SUPERADMIN']), employeeController.deleteEmployee);
+router.put('/:id', authMiddleware, roleMiddleware(['ADMIN', 'SUPERADMIN']), employeeController.updateEmployee);
 
 module.exports = router;

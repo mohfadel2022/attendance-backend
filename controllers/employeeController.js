@@ -37,12 +37,35 @@ exports.createEmployee = async (req, res) => {
 
 exports.getEmployees = async (req, res) => {
     try {
-        const employees = await prisma.user.findMany({
-            where: { role: 'EMPLOYEE' },
+        const userId = req.user?.userId;
+        const currentUser = await prisma.user.findUnique({
+            where: { id: userId }
+        });
+
+        if (!currentUser) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const userRole = currentUser.role.trim().toUpperCase();
+
+        let whereClause = {};
+
+        if (userRole === 'ADMIN') {
+            whereClause = { role: 'EMPLOYEE' };
+        } else if (userRole.includes('SUPER')) {
+            whereClause = {};
+        } else {
+            whereClause = { id: currentUser.id };
+        }
+
+        const users = await prisma.user.findMany({
+            where: whereClause,
             select: { id: true, name: true, email: true, code: true, role: true }
         });
-        res.json(employees);
+
+        res.json(users);
     } catch (error) {
+        console.error('[ERROR] getEmployees:', error);
         res.status(500).json({ error: error.message });
     }
 };
